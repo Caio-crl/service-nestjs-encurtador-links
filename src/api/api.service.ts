@@ -13,4 +13,8 @@ export class ApiService {
   createLink(url: string): Promise<CreatedLinkDto> {
     return this.appService.createLink(url);
   }
+
+  resolveLink(slug: string): Promise<string> {
+    return this.appService.resolveLink(slug);
+  }
 }

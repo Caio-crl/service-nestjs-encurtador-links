@@ -16,3 +16,9 @@ Defina `APP_BASE_URL` com a origem HTTP(S) pública da API (por exemplo,
 `http://localhost:3000`). O endpoint `POST /links` recebe `{ "url":
 "https://example.com/page" }` e devolve o link criado com `shortUrl` baseado
 nessa origem. O campo `slug` é gerado pelo servidor e não é aceito na entrada.
+
+## Redirect
+
+`GET /:slug` registra um Click e responde com HTTP 302 e `Location` apontando
+para a URL original. Um slug inexistente retorna 404. Se o registro do Click
+falhar, o redirect não é enviado.

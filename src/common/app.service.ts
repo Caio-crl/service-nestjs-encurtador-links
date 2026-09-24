@@ -1,7 +1,12 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { QueryFailedError } from 'typeorm';
 import { LinkEntity } from './database/entities/link.entity';
+import { ClickRepository } from './database/repositories/click.repository';
 import { LinkRepository } from './database/repositories/link.repository';
 import { SlugService } from './slug.service';
 
@@ -15,12 +20,23 @@ type CreatedLink = Pick<
 export class AppService {
   constructor(
     private readonly linkRepository: LinkRepository,
+    private readonly clickRepository: ClickRepository,
     private readonly slugService: SlugService,
     private readonly configService: ConfigService,
   ) {}
 
   getHealthCheck() {
     return { message: 'UP' };
+  }
+
+  async resolveLink(slug: string): Promise<string> {
+    const link = await this.linkRepository.findBySlug(slug);
+    if (!link) {
+      throw new NotFoundException('Link not found');
+    }
+
+    await this.clickRepository.createForLink(link.id);
+    return link.originalUrl;
   }
 
   async createLink(originalUrl: string): Promise<CreatedLink> {
