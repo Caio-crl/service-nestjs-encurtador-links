@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AppService } from '../common/app.service';
 import { CreatedLinkDto } from './dto/created-link.dto';
+import { LinkAnalyticsDto } from './dto/link-analytics.dto';
 
 @Injectable()
 export class ApiService {
@@ -16,5 +17,9 @@ export class ApiService {
 
   resolveLink(slug: string): Promise<string> {
     return this.appService.resolveLink(slug);
+  }
+
+  getLinkAnalytics(slug: string): Promise<LinkAnalyticsDto> {
+    return this.appService.getLinkAnalytics(slug);
   }
 }

@@ -14,12 +14,14 @@ import {
   ApiFoundResponse,
   ApiInternalServerErrorResponse,
   ApiNotFoundResponse,
+  ApiOkResponse,
   ApiOperation,
   ApiParam,
 } from '@nestjs/swagger';
 import { ApiService } from './api.service';
 import { CreateLinkDto } from './dto/create-link.dto';
 import { CreatedLinkDto } from './dto/created-link.dto';
+import { LinkAnalyticsDto } from './dto/link-analytics.dto';
 import { ResolveSlugParamsDto } from './dto/resolve-slug-params.dto';
 
 @Controller()
@@ -65,5 +67,28 @@ export class ApiController {
     params: ResolveSlugParamsDto,
   ): Promise<{ url: string }> {
     return { url: await this.apiService.resolveLink(params.slug) };
+  }
+
+  @Get('/links/:slug/analytics')
+  @ApiOperation({ summary: 'Consulta o total e o último clique de um link' })
+  @ApiParam({
+    name: 'slug',
+    description: 'Slug alfanumérico de seis caracteres',
+    example: 'aB91xZ',
+  })
+  @ApiOkResponse({
+    description: 'Analytics básico do link',
+    type: LinkAnalyticsDto,
+  })
+  @ApiBadRequestResponse({ description: 'Slug inválido' })
+  @ApiNotFoundResponse({ description: 'Link não encontrado' })
+  @ApiInternalServerErrorResponse({
+    description: 'Falha ao consultar analytics',
+  })
+  getLinkAnalytics(
+    @Param(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
+    params: ResolveSlugParamsDto,
+  ): Promise<LinkAnalyticsDto> {
+    return this.apiService.getLinkAnalytics(params.slug);
   }
 }

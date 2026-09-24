@@ -22,3 +22,9 @@ nessa origem. O campo `slug` é gerado pelo servidor e não é aceito na entrada
 `GET /:slug` registra um Click e responde com HTTP 302 e `Location` apontando
 para a URL original. Um slug inexistente retorna 404. Se o registro do Click
 falhar, o redirect não é enviado.
+
+## Analytics básico
+
+`GET /links/:slug/analytics` retorna o slug, a URL original, a data de criação,
+o total de cliques e a data do clique mais recente. Para links ainda não
+acessados, `totalClicks` é `0` e `lastClickAt` é `null`.

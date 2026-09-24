@@ -15,6 +15,10 @@ type CreatedLink = Pick<
   LinkEntity,
   'id' | 'originalUrl' | 'slug' | 'createdAt'
 > & { shortUrl: string };
+type LinkAnalytics = Pick<LinkEntity, 'slug' | 'originalUrl' | 'createdAt'> & {
+  totalClicks: number;
+  lastClickAt: Date | null;
+};
 
 @Injectable()
 export class AppService {
@@ -37,6 +41,22 @@ export class AppService {
 
     await this.clickRepository.createForLink(link.id);
     return link.originalUrl;
+  }
+
+  async getLinkAnalytics(slug: string): Promise<LinkAnalytics> {
+    const link = await this.linkRepository.findBySlug(slug);
+    if (!link) {
+      throw new NotFoundException('Link not found');
+    }
+
+    const clicks = await this.clickRepository.getAnalyticsForLink(link.id);
+    return {
+      slug: link.slug,
+      originalUrl: link.originalUrl,
+      totalClicks: clicks.totalClicks,
+      createdAt: link.createdAt,
+      lastClickAt: clicks.lastClickAt,
+    };
   }
 
   async createLink(originalUrl: string): Promise<CreatedLink> {
