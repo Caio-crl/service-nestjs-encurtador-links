@@ -1,29 +1,22 @@
-# O npm i do alpine é mto mais rápido que pelo chainguard. Acredito que é devido ao cache do alpine ser mais eficiente que o do chainguard
-FROM node:alpine as dependencies
+FROM node:22.23.3-bookworm-slim AS build
 
-# Variável com o token do GitHub para instalar pacotes privados
-ARG GITHUB_TOKEN
-WORKDIR /app/dependencies
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
 
-
-# Copiar os arquivos de dependências
-ADD package.json package-lock.json ./
-RUN npm i --verbose
-
-# A imagem principal é pelo chainguard pois é a imagem que possui mais seguimentos de segurança
-FROM node:alpine as build
-
-# Alteração da pasta de instalação dos módulos
-# Isso é feito para casos em que há necessidade de rodar o projeto em DEV para "debug em desespero"
-ENV NODE_MODULE_PATH=/app/dependencies
-ENV NODE_PATH=$NODE_MODULE_PATH/node_modules
-RUN npm config set prefix $NODE_MODULE_PATH && mkdir -p /app/dependencies
-
-WORKDIR /app/source
-
-# Copiar o restante dos arquivos do projeto
-COPY --from=dependencies /app/dependencies /app/
-COPY . .
-
+COPY nest-cli.json tsconfig.json tsconfig.build.json ./
+COPY src ./src
 RUN npm run build
-CMD npm start
+RUN npm prune --omit=dev
+
+FROM node:22.23.3-bookworm-slim
+
+ENV NODE_ENV=production
+WORKDIR /app
+COPY --from=build /app/package.json /app/package-lock.json ./
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+
+USER node
+EXPOSE 3000
+CMD ["node", "dist/main.js"]

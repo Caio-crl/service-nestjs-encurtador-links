@@ -1,5 +1,45 @@
 # Nome do projeto: worker-nestjs-teste
 
+## Running locally
+
+Requisitos: Docker com Compose e Node.js 22 ou superior para executar os testes no host.
+
+1. Copie `.env.example` para `.env` e substitua as duas senhas de exemplo por
+   valores locais. Mantenha `DB_HOST=127.0.0.1` e um `DB_NAME` terminado em
+   `_local` para os testes E2E. O arquivo `.env` não deve ser versionado.
+2. Suba o MySQL e construa a imagem da API:
+
+   ```sh
+   docker compose up -d mysql
+   docker compose build app
+   ```
+
+3. Execute a migration inicial antes de iniciar a API:
+
+   ```sh
+   docker compose run --rm app npm run migration:run:compiled
+   ```
+
+4. Inicie a aplicação:
+
+   ```sh
+   docker compose up -d app
+   ```
+
+5. Acesse `http://localhost:3000/health` e o Swagger em
+   `http://localhost:3000/v1/docs/swagger` (ajuste a porta se alterar `PORT`).
+6. Instale as dependências no host e execute os testes unitários e E2E:
+
+   ```sh
+   npm ci
+   npm test -- --runInBand
+   npm run test:e2e
+   ```
+
+Os testes E2E usam a API e o MySQL locais em execução, validam o schema e
+removem apenas os links criados por eles (os respectivos cliques são removidos
+pela foreign key). Não executam `synchronize` nem recriam tabelas.
+
 ## Persistência
 
 O esquema inicial de `links` e `clicks` está em uma migration TypeORM.

@@ -28,8 +28,7 @@ out/
 coverage/
 
 # Env e configs sensíveis
-.env
-.env*.local
+.env*
 
 # Logs
 *.log
