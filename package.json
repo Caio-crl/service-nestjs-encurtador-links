@@ -1,7 +1,7 @@
 {
-  "name": "worker-nestjs-teste",
+  "name": "url-shortener-api",
   "version": "1.0.0",
-  "description": "",
+  "description": "NestJS URL shortener API with click analytics",
   "author": "caio",
   "private": true,
   "license": "UNLICENSED",

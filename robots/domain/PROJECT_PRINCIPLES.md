@@ -1,136 +1,31 @@
-# PROJECT_PRINCIPLES.md
+# Princípios do projeto — URL Shortener API
 
-Este arquivo descreve princípios, contexto, limites e decisões específicas do projeto atual.
+## Objetivo e contexto
 
-Use este arquivo para explicar o sistema em que o agente está trabalhando agora. Não duplique aqui regras genéricas de engenharia, segurança ou UI. Essas regras ficam em `robots/ENGINEERING_RULES.md` e `robots/UI_ENGINEERING_RULES.md`.
+Backend NestJS para criar links curtos, redirecionar acessos e consultar analytics básicos. O MVP prioriza um fluxo simples e verificável com MySQL real; não inclui frontend, autenticação ou infraestrutura de filas.
 
-## 1. Identificação do projeto
+## Vocabulário
 
-Preencha:
+- Link: URL original, slug único e datas de criação/atualização.
+- Slug: identificador público alfanumérico de seis caracteres, gerado aleatoriamente.
+- Click: registro mínimo de um acesso válido, associado a um Link e com data/hora.
+- Analytics: total de Clicks e data/hora do Click mais recente de um Link.
 
-```txt
-Nome do projeto: <nome>
-Objetivo principal: <o que este sistema resolve>
-Usuários principais: <quem usa>
-Contexto de execução: <backend, frontend, CLI, app, worker, biblioteca, agente, etc.>
-```
+## Fluxos e regras
 
-## 2. Objetivo do sistema
+- Criação: POST /links recebe uma URL HTTP(S) válida, gera um slug, verifica colisão e persiste o Link. O banco mantém UNIQUE no slug; o serviço tenta até cinco vezes e trata colisão concorrente.
+- Redirect: GET /:slug procura o Link, persiste um Click e só então retorna 302 para originalUrl. Slug inexistente resulta em 404; falha ao salvar Click não deve parecer um redirect bem-sucedido.
+- Analytics: GET /links/:slug/analytics retorna apenas slug, originalUrl, totalClicks, createdAt e lastClickAt. Sem Clicks, o total é 0 e lastClickAt é null.
+- Health: GET /health retorna o estado básico da API.
 
-Explique em poucas linhas o que o sistema deve fazer e qual problema ele resolve.
+## Arquitetura existente
 
-Inclua:
+Controller → ApiService → AppService → repositories TypeORM → MySQL. DTOs e validação ficam em src/api; entidades, repositories e migration ficam em src/common/database; testes unitários ficam junto ao código e E2E em test/.
 
-- o resultado esperado para o usuário;
-- o que o sistema deve priorizar;
-- o que o sistema não tenta resolver.
+## Limites do MVP
 
-## 3. Princípios específicos do projeto
+Não registrar IP, user-agent ou outros dados de visitante. Não adicionar autenticação, dashboard, cache, filas, workers ou endpoints de gestão sem novo escopo. Não mudar o schema implicitamente: synchronize e migrationsRun permanecem false e mudanças de banco exigem migration.
 
-Liste princípios que orientam decisões neste projeto.
+## Convenções e validações
 
-Exemplos:
-
-- O sistema deve priorizar segurança sobre automação completa.
-- A UI deve mostrar estado real, não simular sucesso.
-- Toda ação crítica precisa ser revisável.
-- O histórico precisa permitir auditoria mínima.
-- O sistema deve favorecer alterações pequenas e reversíveis.
-
-## 4. Linguagem do domínio
-
-Defina termos próprios deste projeto.
-
-Formato sugerido:
-
-```txt
-Termo: <nome>
-Significado: <definição>
-Exemplo: <uso prático>
-Não confundir com: <quando aplicável>
-```
-
-## 5. Fluxos principais
-
-Descreva os fluxos que o agente precisa entender para trabalhar bem.
-
-Formato sugerido:
-
-```txt
-Fluxo: <nome>
-Entrada: <o que inicia o fluxo>
-Passos principais: <resumo>
-Saída esperada: <resultado>
-Regras importantes: <limites e cuidados>
-```
-
-## 6. Arquitetura relevante
-
-Explique apenas a arquitetura já existente ou aprovada que o agente precisa respeitar.
-
-Inclua, se aplicável:
-
-- módulos principais;
-- fronteiras entre backend, frontend, worker, CLI ou pacotes;
-- onde ficam contratos compartilhados;
-- onde ficam testes;
-- onde ficam docs;
-- padrões locais já existentes.
-
-Não use este arquivo para propor arquitetura nova. Registre somente o que existe ou o que já foi aprovado.
-
-## 7. Limites do projeto
-
-Declare o que não deve ser feito sem aprovação explícita.
-
-Exemplos:
-
-- não alterar autenticação;
-- não mexer em persistência;
-- não trocar biblioteca de UI;
-- não adicionar dependência nova;
-- não criar novo padrão global;
-- não mudar contrato público;
-- não alterar comportamento de produção sem teste.
-
-## 8. Convenções locais
-
-Registre convenções que só existem neste projeto.
-
-Exemplos:
-
-- nomes de pastas;
-- nomes de endpoints;
-- nomes de eventos;
-- estilo de testes;
-- formato de documentação;
-- fluxo de checkpoint;
-- comandos de validação esperados.
-
-## 9. Validações esperadas
-
-Liste validações comuns deste projeto.
-
-Formato sugerido:
-
-```txt
-Cenário: <tipo de alteração>
-Validações esperadas:
-- <comando ou checagem>
-- <teste específico>
-- <build/type-check/lint quando aplicável>
-```
-
-## 10. Fora de escopo conhecido
-
-Liste coisas que parecem tentadoras, mas não devem ser feitas automaticamente.
-
-Exemplos:
-
-- redesign de UI;
-- troca de framework;
-- refactor amplo;
-- alteração de infraestrutura;
-- automação destrutiva;
-- leitura de dados sensíveis;
-- criação de quality gate novo.
+Nomes de domínio: LinkEntity, ClickEntity, LinkRepository e ClickRepository. Usar UUID para IDs e APP_BASE_URL para construir shortUrl. Validar com build, lint e testes unitários; o E2E depende de API e MySQL reais locais e limpa somente os Links que cria.

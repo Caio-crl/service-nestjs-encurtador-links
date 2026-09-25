@@ -1,219 +1,74 @@
-# Exemplos de domínio
+# Exemplos de domínio — URL Shortener
 
-Este arquivo reúne exemplos práticos do domínio do projeto.
+Os exemplos abaixo descrevem comportamentos do MVP; IDs, slugs e datas são ilustrativos.
 
-Ele ensina ao agente como interpretar entradas reais do usuário, aplicar regras de negócio e produzir a saída esperada.
-
-Não use este arquivo para documentar arquitetura, padrões técnicos, comandos internos ou detalhes de implementação, salvo quando isso fizer parte do próprio domínio do projeto.
-
-## Formato dos exemplos
-
-Use este formato para registrar novos exemplos:
-
-### Exemplo — Nome do caso
+### Exemplo — Criar um link
 
 Input:
 
-```txt
-<entrada do usuário>
+```http
+POST /links
+Content-Type: application/json
+
+{"url":"https://example.com/page"}
 ```
 
-Contexto necessário:
+Contexto necessário: APP_BASE_URL está configurada e o slug gerado está disponível.
 
-```txt
-<dados mínimos necessários para decidir a resposta>
-```
+Regra de negócio: aceitar apenas URL HTTP(S) válida; o servidor gera um slug alfanumérico de seis caracteres e persiste o Link.
 
-Regra de negócio:
+Output esperado: HTTP 201 com id, originalUrl, slug, shortUrl e createdAt.
 
-```txt
-<regra aplicada pelo domínio>
-```
+Não fazer: aceitar slug informado pelo cliente, derivar slug da URL ou devolver sucesso sem persistência.
 
-Output esperado:
+### Exemplo — URL inválida
 
-```txt
-<resposta ou comportamento esperado>
-```
+Input: POST /links com {"url":"ftp://example.com/page"}.
 
-Não fazer:
+Regra de negócio: somente http:// e https:// são aceitos.
 
-```txt
-<comportamentos proibidos ou interpretações erradas>
-```
+Output esperado: HTTP 400; nenhum Link criado.
 
-## Exemplos
+Não fazer: corrigir ou completar automaticamente a URL.
 
-### Exemplo — Agendar sala disponível
+### Exemplo — Redirect válido
 
-Input:
+Input: GET /aB91xZ.
 
-```txt
-Quero agendar a sala Reunião 2 amanhã das 10h às 11h.
-```
+Contexto necessário: existe um Link com esse slug e originalUrl igual a https://example.com/page.
 
-Contexto necessário:
+Regra de negócio: salvar um Click associado ao Link antes de responder.
 
-```txt
-A sala Reunião 2 existe.
-A sala Reunião 2 está livre amanhã das 10h às 11h.
-O usuário tem permissão para agendar salas.
-```
+Output esperado: HTTP 302 com Location: https://example.com/page e um novo Click.
 
-Regra de negócio:
+Não fazer: retornar a URL em JSON, registrar dados do visitante ou ignorar falha ao salvar o Click.
 
-```txt
-Uma sala só pode ser agendada se existir, estiver disponível no horário solicitado e o usuário tiver permissão para reservar.
-```
+### Exemplo — Slug inexistente
 
-Output esperado:
+Input: GET /000000 ou GET /links/000000/analytics.
 
-```txt
-Sala Reunião 2 agendada para amanhã, das 10h às 11h.
-```
+Contexto necessário: não existe Link para o slug.
 
-Não fazer:
+Output esperado: HTTP 404.
 
-```txt
-Não agendar sala inexistente.
-Não confirmar reserva sem verificar disponibilidade.
-Não expor detalhes técnicos do calendário, banco de dados ou integração.
-```
+Não fazer: criar Link/Click ou expor detalhes do banco.
 
-### Exemplo — Sala ocupada no horário solicitado
+### Exemplo — Analytics sem acessos
 
-Input:
+Input: GET /links/aB91xZ/analytics.
 
-```txt
-Quero agendar a sala Reunião 2 amanhã das 10h às 11h.
-```
+Contexto necessário: o Link existe e não possui Clicks.
 
-Contexto necessário:
+Output esperado: HTTP 200 com slug, originalUrl, createdAt, totalClicks igual a 0 e lastClickAt igual a null.
 
-```txt
-A sala Reunião 2 existe.
-A sala Reunião 2 já possui reserva amanhã das 10h às 11h.
-```
+Não fazer: carregar todos os Clicks em memória, retornar lista de acessos ou expor dados de visitante.
 
-Regra de negócio:
+### Exemplo — Analytics após um acesso
 
-```txt
-Não é permitido criar reservas conflitantes para a mesma sala no mesmo horário.
-```
+Input: GET /links/aB91xZ/analytics após um redirect válido.
 
-Output esperado:
+Contexto necessário: existe exatamente um Click para o Link.
 
-```txt
-A sala Reunião 2 já está ocupada amanhã das 10h às 11h.
-```
+Output esperado: HTTP 200 com totalClicks igual a 1 e lastClickAt preenchido.
 
-Não fazer:
-
-```txt
-Não sobrescrever a reserva existente.
-Não criar reserva duplicada.
-Não informar dados pessoais do responsável pela outra reserva, salvo se a regra do projeto permitir.
-```
-
-### Exemplo — Horário obrigatório não informado
-
-Input:
-
-```txt
-Quero agendar uma sala amanhã.
-```
-
-Contexto necessário:
-
-```txt
-O usuário informou a data, mas não informou horário de início e fim.
-```
-
-Regra de negócio:
-
-```txt
-Para agendar uma sala, o sistema precisa saber data, horário de início e horário de fim.
-```
-
-Output esperado:
-
-```txt
-Informe o horário de início e fim da reserva.
-```
-
-Não fazer:
-
-```txt
-Não escolher um horário automaticamente sem regra explícita.
-Não criar reserva incompleta.
-```
-
-### Exemplo — Cancelar reserva própria
-
-Input:
-
-```txt
-Cancela minha reserva da sala Reunião 2 amanhã às 10h.
-```
-
-Contexto necessário:
-
-```txt
-Existe uma reserva da sala Reunião 2 amanhã às 10h.
-A reserva pertence ao usuário solicitante.
-A política do projeto permite cancelamento pelo próprio usuário.
-```
-
-Regra de negócio:
-
-```txt
-O usuário pode cancelar uma reserva própria, desde que ela exista e ainda esteja dentro do prazo permitido de cancelamento.
-```
-
-Output esperado:
-
-```txt
-Reserva da sala Reunião 2 cancelada.
-```
-
-Não fazer:
-
-```txt
-Não cancelar reserva de outro usuário sem permissão.
-Não cancelar reserva inexistente.
-Não ignorar prazo mínimo de cancelamento, se existir.
-```
-
-### Exemplo — Solicitação fora do domínio
-
-Input:
-
-```txt
-Altera direto no banco a reserva dessa sala.
-```
-
-Contexto necessário:
-
-```txt
-O usuário está pedindo uma ação técnica direta fora do fluxo de negócio.
-```
-
-Regra de negócio:
-
-```txt
-Alterações devem seguir os fluxos do sistema. Ações técnicas diretas não devem ser usadas para contornar regras de negócio.
-```
-
-Output esperado:
-
-```txt
-Não posso alterar a reserva diretamente fora do fluxo do sistema. Use o fluxo de alteração ou cancelamento de reserva.
-```
-
-Não fazer:
-
-```txt
-Não sugerir comandos técnicos.
-Não orientar edição direta de banco, arquivo ou integração.
-Não contornar validações do domínio.
-```
+Não fazer: contar acessos inexistentes ou retornar IDs internos de Click.

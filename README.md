@@ -1,70 +1,146 @@
-# Nome do projeto: worker-nestjs-teste
+# URL Shortener API
 
-## Running locally
+API de encurtamento de URLs com contagem de acessos. O projeto transforma URLs longas em links curtos e mostra métricas básicas sem coletar dados de visitantes.
 
-Requisitos: Docker com Compose e Node.js 22 ou superior para executar os testes no host.
+## O que faz
 
-1. Copie `.env.example` para `.env` e substitua as duas senhas de exemplo por
-   valores locais. Mantenha `DB_HOST=127.0.0.1` e um `DB_NAME` terminado em
-   `_local` para os testes E2E. O arquivo `.env` não deve ser versionado.
-2. Suba o MySQL e construa a imagem da API:
+- Cria um Link a partir de uma URL HTTP(S) válida e devolve um slug de seis caracteres.
+- Redireciona o slug com HTTP 302, registrando um Click antes da resposta.
+- Informa o total de cliques e a data do último acesso por slug.
+- Expõe health check e documentação interativa via Swagger.
+
+## Stack e arquitetura
+
+NestJS 11, TypeScript 5, TypeORM 0.3, MySQL 8.4, Node.js 22+, Jest/Supertest e Docker Compose.
+
+```mermaid
+flowchart LR
+  Client --> Controller["NestJS API / Controller"]
+  Controller --> ApiService
+  ApiService --> AppService
+  AppService --> Repositories
+  Repositories --> MySQL
+```
+
+```mermaid
+flowchart LR
+  Request["GET /:slug"] --> Find["Busca Link"]
+  Find --> Save["Salva Click"]
+  Save --> Redirect["302 + Location: originalUrl"]
+```
+
+O controller recebe e valida a requisição; ApiService encaminha o caso de uso; AppService coordena as regras; repositories acessam o MySQL. Se o Click não puder ser salvo, o redirect não é enviado.
+
+## Endpoints
+
+| Método | Rota                   | Resultado                                                           |
+| ------ | ---------------------- | ------------------------------------------------------------------- |
+| POST   | /links                 | Cria o link (201); URL inválida retorna 400                         |
+| GET    | /:slug                 | Registra o clique e redireciona (302); slug inexistente retorna 404 |
+| GET    | /links/:slug/analytics | Retorna métricas agregadas (200); slug inexistente retorna 404      |
+| GET    | /health                | Retorna o estado básico da API (200)                                |
+
+Swagger: http://localhost:3000/v1/docs/swagger (ajuste a porta se necessário).
+
+Exemplo de criação:
+
+```http
+POST /links
+Content-Type: application/json
+
+{"url":"https://example.com/page"}
+```
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "originalUrl": "https://example.com/page",
+  "slug": "aB91xZ",
+  "shortUrl": "http://localhost:3000/aB91xZ",
+  "createdAt": "2026-09-24T18:00:00.000Z"
+}
+```
+
+Os valores acima são ilustrativos: o slug e o UUID são gerados a cada criação. A base de shortUrl vem de APP_BASE_URL. O cliente não escolhe o slug.
+
+```http
+GET /aB91xZ
+
+HTTP/1.1 302 Found
+Location: https://example.com/page
+```
+
+Após esse acesso, GET /links/aB91xZ/analytics retorna, por exemplo:
+
+```json
+{
+  "slug": "aB91xZ",
+  "originalUrl": "https://example.com/page",
+  "totalClicks": 1,
+  "createdAt": "2026-09-24T18:00:00.000Z",
+  "lastClickAt": "2026-09-24T18:30:00.000Z"
+}
+```
+
+Sem acessos, totalClicks é 0 e lastClickAt é null. GET /health retorna {"message":"UP"}.
+
+## Executar localmente
+
+Requisitos: Docker com Compose e, para testes no host, Node.js 22+ e npm.
+
+1. Copie o exemplo e substitua as duas senhas por valores locais; nunca versione o arquivo real:
+
+   ```sh
+   cp .env.example .env
+   ```
+
+   Configure PORT, APP_BASE_URL, DB_HOST, DB_PORT, DB_USER, DB_PASSWORD e DB_NAME. O Compose usa MYSQL_ROOT_PASSWORD para inicializar o MySQL e substitui DB_HOST por mysql dentro da rede. Para os E2E no host, mantenha DB_HOST=127.0.0.1, APP_BASE_URL local e DB_NAME terminado em _local.
+
+2. Suba o banco, construa a API e execute a migration antes de iniciar a aplicação:
 
    ```sh
    docker compose up -d mysql
    docker compose build app
-   ```
-
-3. Execute a migration inicial antes de iniciar a API:
-
-   ```sh
    docker compose run --rm app npm run migration:run:compiled
-   ```
-
-4. Inicie a aplicação:
-
-   ```sh
    docker compose up -d app
    ```
 
-5. Acesse `http://localhost:3000/health` e o Swagger em
-   `http://localhost:3000/v1/docs/swagger` (ajuste a porta se alterar `PORT`).
-6. Instale as dependências no host e execute os testes unitários e E2E:
+3. Abra http://localhost:3000/health e o Swagger na rota acima. O MySQL usa volume persistente; parar os containers com docker compose down não remove esse volume.
 
-   ```sh
-   npm ci
-   npm test -- --runInBand
-   npm run test:e2e
-   ```
+Se usar um MySQL externo ao Compose, exporte as variáveis DB_* antes de executar npm run migration:run: o CLI do TypeORM não carrega .env por conta própria. Para iniciar a API no host após configurar o banco, use npm ci e npm run start:dev.
 
-Os testes E2E usam a API e o MySQL locais em execução, validam o schema e
-removem apenas os links criados por eles (os respectivos cliques são removidos
-pela foreign key). Não executam `synchronize` nem recriam tabelas.
+## Testes
 
-## Persistência
+Com o MySQL e a API locais em execução:
 
-O esquema inicial de `links` e `clicks` está em uma migration TypeORM.
-`synchronize` permanece desativado; a migration não é executada ao iniciar a API.
+```sh
+npm ci
+npm run build
+npm run lint
+npm test -- --runInBand
+npm run test:e2e
+```
 
-Para executar ou reverter migrations, defina `DB_HOST`, `DB_USER`,
-`DB_PASSWORD` e `DB_NAME` no ambiente. `DB_PORT` é opcional e usa `3306`
-por padrão. Depois, use `npm run migration:run` ou
-`npm run migration:revert` contra o banco desejado.
+Os testes unitários usam mocks e não dependem de MySQL. Os E2E usam a API e o MySQL reais, verificam criação, redirect, Click e analytics, e removem somente os Links que criam. O fluxo completo do MVP foi validado contra banco real.
 
-## Criação de links
+## Estrutura
 
-Defina `APP_BASE_URL` com a origem HTTP(S) pública da API (por exemplo,
-`http://localhost:3000`). O endpoint `POST /links` recebe `{ "url":
-"https://example.com/page" }` e devolve o link criado com `shortUrl` baseado
-nessa origem. O campo `slug` é gerado pelo servidor e não é aceito na entrada.
+```text
+src/api/                 Controller, ApiService e DTOs HTTP
+src/common/app.service.ts Regras de aplicação
+src/common/database/     Entidades, repositories, DataSource e migration
+src/common/slug.service.ts Geração do slug
+test/                    E2E com Jest e Supertest
+robots/                  Diretrizes internas do projeto
+```
 
-## Redirect
+## Decisões e limites
 
-`GET /:slug` registra um Click e responde com HTTP 302 e `Location` apontando
-para a URL original. Um slug inexistente retorna 404. Se o registro do Click
-falhar, o redirect não é enviado.
+- IDs UUID; slug aleatório alfanumérico de seis caracteres, não derivado da URL.
+- UNIQUE no slug, verificação prévia e até cinco tentativas; a violação de UNIQUE por concorrência também é tratada.
+- Click tracking síncrono antes do 302. Click armazena apenas Link e data/hora.
+- Analytics usa COUNT e MAX no banco, sem carregar todos os Clicks.
+- Schema criado por migration; synchronize e migrationsRun permanecem false.
+- MVP sem autenticação, dashboard, rate limiting ou métricas detalhadas por visitante. Antes de expor a API publicamente, são necessários controles de abuso e configuração de produção apropriados.
 
-## Analytics básico
-
-`GET /links/:slug/analytics` retorna o slug, a URL original, a data de criação,
-o total de cliques e a data do clique mais recente. Para links ainda não
-acessados, `totalClicks` é `0` e `lastClickAt` é `null`.
+Evoluções possíveis: autenticação para gestão de links, proteção contra abuso, relatórios adicionais e automação de deploy/CI.
